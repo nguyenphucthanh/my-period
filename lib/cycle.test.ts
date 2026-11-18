@@ -147,6 +147,13 @@ describe("buildBar", () => {
     expect(buildBar(periods, "2026-12-02")!.daysUntilNext).toBe(-3);
   });
 
+  it("counts days until ovulation, negative once passed", () => {
+    // ovulation Nov 15
+    expect(buildBar(periods, "2026-11-10")!.daysUntilOvulation).toBe(5);
+    expect(buildBar(periods, "2026-11-15")!.daysUntilOvulation).toBe(0);
+    expect(buildBar(periods, "2026-11-18")!.daysUntilOvulation).toBe(-3);
+  });
+
   it("reports a today outside the bar", () => {
     expect(buildBar(periods, "2026-12-15")!.todayIndex).toBe(44);
     expect(buildBar(periods, "2026-10-30")!.todayIndex).toBe(-2);

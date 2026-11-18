@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { api } from "@/convex/_generated/api";
 import { buildBar, periodLength, toIsoDate } from "@/lib/cycle";
-import { formatFull } from "@/lib/format";
+import { formatFull, nextPeriodCountdown, ovulationText } from "@/lib/format";
 
 export default function Home() {
   const periods = useQuery(api.periods.list);
@@ -50,14 +50,30 @@ export default function Home() {
       </header>
       <Separator />
       <main className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-8">
-        <Button onClick={() => openDialog()} disabled={!periods}>
-          Ghi nhận kỳ kinh
-        </Button>
+        <div className="flex items-start justify-between gap-4">
+          {bar && (
+            <section className="flex flex-col gap-1">
+              <p className="font-medium">Kỳ kinh tiếp theo</p>
+              <p className="text-4xl font-bold">
+                {nextPeriodCountdown(bar.daysUntilNext)}
+              </p>
+              <p>{ovulationText(bar.daysUntilOvulation)}</p>
+            </section>
+          )}
+          <Button
+            size="lg"
+            className="ml-auto shrink-0"
+            onClick={() => openDialog()}
+            disabled={!periods}
+          >
+            Ghi nhận kỳ kinh
+          </Button>
+        </div>
         {periods === undefined ? (
           <Skeleton className="h-24 w-full" />
         ) : bar ? (
           // key resets the marker when the last period changes
-          <CycleBar key={bar.startDate} bar={bar} today={today} />
+          <CycleBar key={bar.startDate} bar={bar} />
         ) : (
           <Empty>
             <EmptyHeader>

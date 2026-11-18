@@ -110,6 +110,8 @@ export type Bar = {
   todayIndex: number;
   /** Days from today until the predicted next period; <= 0 once it is due. */
   daysUntilNext: number;
+  /** Days from today until ovulation in the current cycle; < 0 once passed. */
+  daysUntilOvulation: number;
 };
 
 const within = (d: string, a: string, b: string) => d >= a && d <= b;
@@ -148,5 +150,6 @@ export function buildBar(
     days,
     todayIndex: diffDays(last.startDate, today),
     daysUntilNext: diffDays(today, prediction.nextStart),
+    daysUntilOvulation: diffDays(today, prediction.ovulation),
   };
 }
