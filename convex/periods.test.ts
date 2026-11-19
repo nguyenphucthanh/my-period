@@ -26,9 +26,14 @@ describe("periods", () => {
   it("rejects anonymous callers", async () => {
     getAuthUserId.mockResolvedValue(null);
     const t = convexTest(schema, modules);
-    await expect(t.query(api.periods.list, {})).rejects.toThrow("Not authenticated");
+    await expect(t.query(api.periods.list, {})).rejects.toThrow(
+      "Not authenticated",
+    );
     await expect(
-      t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" }),
+      t.mutation(api.periods.log, {
+        startDate: "2026-11-01",
+        endDate: "2026-11-05",
+      }),
     ).rejects.toThrow("Not authenticated");
   });
 
@@ -41,10 +46,114 @@ describe("periods", () => {
         endDate: "2026-11-22",
       }),
     );
-    await t.mutation(api.periods.log, { startDate: "2026-10-01", endDate: "2026-10-05" });
-    await t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-10-01",
+      endDate: "2026-10-05",
+    });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-01",
+      endDate: "2026-11-05",
+    });
     const rows = await t.query(api.periods.list, {});
     expect(rows.map((r) => r.startDate)).toEqual(["2026-11-01", "2026-10-01"]);
+  });
+
+  it("listForAnalysis returns the 7 latest periods, caller only", async () => {
+    const { t, otherId } = await setup();
+    for (let m = 1; m <= 9; m++) {
+      const mm = String(m).padStart(2, "0");
+      await t.mutation(api.periods.log, {
+        startDate: `2026-${mm}-01`,
+        endDate: `2026-${mm}-05`,
+      });
+    }
+    await t.run((ctx) =>
+      ctx.db.insert("periods", {
+        userId: otherId,
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
+      }),
+    );
+    const rows = await t.query(api.periods.listForAnalysis, {});
+    expect(rows).toHaveLength(7);
+    expect(rows[0].startDate).toBe("2026-09-01");
+    expect(rows[6].startDate).toBe("2026-03-01");
+  });
+
+  it("listForAnalysis rejects anonymous callers", async () => {
+    getAuthUserId.mockResolvedValue(null);
+    const t = convexTest(schema, modules);
+    await expect(t.query(api.periods.listForAnalysis, {})).rejects.toThrow(
+      "Not authenticated",
+    );
+  });
+
+  it("listByYear returns that year's periods plus the next one, caller only", async () => {
+    const { t, otherId } = await setup();
+    for (const startDate of [
+      "2025-12-20",
+      "2026-01-10",
+      "2026-02-08",
+      "2027-01-05",
+      "2027-02-03",
+    ]) {
+      await t.mutation(api.periods.log, {
+        startDate,
+        endDate: startDate.slice(0, 8) + "25",
+      });
+    }
+    await t.run((ctx) =>
+      ctx.db.insert("periods", {
+        userId: otherId,
+        startDate: "2026-06-01",
+        endDate: "2026-06-05",
+      }),
+    );
+    const rows = await t.query(api.periods.listByYear, { year: 2026 });
+    expect(rows.map((r) => r.startDate)).toEqual([
+      "2026-01-10",
+      "2026-02-08",
+      "2027-01-05",
+    ]);
+    expect(await t.query(api.periods.listByYear, { year: 2028 })).toEqual([]);
+  });
+
+  it("listByYear omits the follow-up period when none exists", async () => {
+    const { t } = await setup();
+    await t.mutation(api.periods.log, {
+      startDate: "2026-03-01",
+      endDate: "2026-03-05",
+    });
+    const rows = await t.query(api.periods.listByYear, { year: 2026 });
+    expect(rows).toHaveLength(1);
+  });
+
+  it("listByYear rejects invalid years and anonymous callers", async () => {
+    const { t } = await setup();
+    await expect(
+      t.query(api.periods.listByYear, { year: 2026.5 }),
+    ).rejects.toThrow("Invalid year");
+    await expect(
+      t.query(api.periods.listByYear, { year: 99999 }),
+    ).rejects.toThrow("Invalid year");
+    getAuthUserId.mockResolvedValue(null);
+    await expect(
+      t.query(api.periods.listByYear, { year: 2026 }),
+    ).rejects.toThrow("Not authenticated");
+  });
+
+  it("firstYear gives the earliest logged year, or null", async () => {
+    const { t } = await setup();
+    expect(await t.query(api.periods.firstYear, {})).toBeNull();
+    await t.mutation(api.periods.log, {
+      startDate: "2026-03-01",
+      endDate: "2026-03-05",
+    });
+    await t.mutation(api.periods.log, {
+      startDate: "2024-11-01",
+      endDate: "2024-11-05",
+    });
+    expect(await t.query(api.periods.firstYear, {})).toBe(2024);
   });
 
   it("lists only the 6 latest periods", async () => {
@@ -70,22 +179,34 @@ describe("periods", () => {
   it("rejects invalid input", async () => {
     const { t } = await setup();
     await expect(
-      t.mutation(api.periods.log, { startDate: "2026-11-05", endDate: "2026-11-01" }),
+      t.mutation(api.periods.log, {
+        startDate: "2026-11-05",
+        endDate: "2026-11-01",
+      }),
     ).rejects.toThrow("End date is before start date");
     await expect(
-      t.mutation(api.periods.log, { startDate: "2026-02-30", endDate: "2026-03-02" }),
+      t.mutation(api.periods.log, {
+        startDate: "2026-02-30",
+        endDate: "2026-03-02",
+      }),
     ).rejects.toThrow("Invalid date");
     await expect(
       t.mutation(api.periods.log, { startDate: "nope", endDate: "2026-03-02" }),
     ).rejects.toThrow("Invalid date");
     await expect(
-      t.mutation(api.periods.log, { startDate: "2026-01-01", endDate: "2026-03-01" }),
+      t.mutation(api.periods.log, {
+        startDate: "2026-01-01",
+        endDate: "2026-03-01",
+      }),
     ).rejects.toThrow("Period is too long");
   });
 
   it("rejects overlaps, including a new range that spans an old one", async () => {
     const { t } = await setup();
-    await t.mutation(api.periods.log, { startDate: "2026-11-10", endDate: "2026-11-14" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-10",
+      endDate: "2026-11-14",
+    });
     for (const [s, e] of [
       ["2026-11-12", "2026-11-16"],
       ["2026-11-06", "2026-11-10"],
@@ -97,8 +218,14 @@ describe("periods", () => {
       ).rejects.toThrow("overlaps");
     }
     // adjacent is fine
-    await t.mutation(api.periods.log, { startDate: "2026-11-15", endDate: "2026-11-17" });
-    await t.mutation(api.periods.log, { startDate: "2026-11-06", endDate: "2026-11-09" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-15",
+      endDate: "2026-11-17",
+    });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-06",
+      endDate: "2026-11-09",
+    });
   });
 
   it("updates a period, allowing it to overlap its own old range", async () => {
@@ -118,13 +245,20 @@ describe("periods", () => {
 
   it("update still rejects overlap with another period", async () => {
     const { t } = await setup();
-    await t.mutation(api.periods.log, { startDate: "2026-10-01", endDate: "2026-10-05" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-10-01",
+      endDate: "2026-10-05",
+    });
     const id = await t.mutation(api.periods.log, {
       startDate: "2026-11-01",
       endDate: "2026-11-05",
     });
     await expect(
-      t.mutation(api.periods.update, { id, startDate: "2026-10-04", endDate: "2026-10-08" }),
+      t.mutation(api.periods.update, {
+        id,
+        startDate: "2026-10-04",
+        endDate: "2026-10-08",
+      }),
     ).rejects.toThrow("overlaps");
   });
 
@@ -148,9 +282,15 @@ describe("periods", () => {
       }),
     );
     await expect(
-      t.mutation(api.periods.update, { id, startDate: "2026-11-02", endDate: "2026-11-06" }),
+      t.mutation(api.periods.update, {
+        id,
+        startDate: "2026-11-02",
+        endDate: "2026-11-06",
+      }),
     ).rejects.toThrow("Period not found");
-    await expect(t.mutation(api.periods.remove, { id })).rejects.toThrow("Period not found");
+    await expect(t.mutation(api.periods.remove, { id })).rejects.toThrow(
+      "Period not found",
+    );
     const row = await t.run((ctx) => ctx.db.get("periods", id));
     expect(row?.startDate).toBe("2026-11-01");
   });
@@ -162,24 +302,40 @@ describe("periods", () => {
     });
     await t.mutation(api.pregnancies.start, { startDate: "2026-10-20" });
     await expect(
-      t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" }),
+      t.mutation(api.periods.log, {
+        startDate: "2026-11-01",
+        endDate: "2026-11-05",
+      }),
     ).rejects.toThrow("Cannot log periods while pregnant");
     await expect(
-      t.mutation(api.periods.update, { id, startDate: "2026-10-02", endDate: "2026-10-06" }),
+      t.mutation(api.periods.update, {
+        id,
+        startDate: "2026-10-02",
+        endDate: "2026-10-06",
+      }),
     ).rejects.toThrow("Cannot log periods while pregnant");
     // deleting stays allowed so mistakes can be cleaned up
     await t.mutation(api.periods.remove, { id });
 
     await t.mutation(api.pregnancies.end, { endDate: "2026-11-10" });
-    await t.mutation(api.periods.log, { startDate: "2026-11-15", endDate: "2026-11-19" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-15",
+      endDate: "2026-11-19",
+    });
     expect(await t.query(api.periods.list, {})).toHaveLength(1);
   });
 
   it("only blocks the pregnant user", async () => {
     const { t, otherId } = await setup();
     await t.run((ctx) =>
-      ctx.db.insert("pregnancies", { userId: otherId, startDate: "2026-10-01" }),
+      ctx.db.insert("pregnancies", {
+        userId: otherId,
+        startDate: "2026-10-01",
+      }),
     );
-    await t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" });
+    await t.mutation(api.periods.log, {
+      startDate: "2026-11-01",
+      endDate: "2026-11-05",
+    });
   });
 });

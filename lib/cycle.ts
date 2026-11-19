@@ -10,8 +10,8 @@ export const MAX_RECENT_PERIODS = 6;
 export const MIN_BAR_DAYS = 45;
 export const MAX_BAR_DAYS = 60;
 /** Gaps outside this range are treated as missed logs / outliers. */
-const MIN_CYCLE = 15;
-const MAX_CYCLE = 60;
+export const MIN_CYCLE = 15;
+export const MAX_CYCLE = 60;
 
 const DAY_MS = 86_400_000;
 
@@ -58,7 +58,7 @@ function sortAsc<T extends PeriodRange>(periods: readonly T[]): T[] {
  * Periods that started after `since` (the end of the latest pregnancy), so
  * cycles from before a pregnancy never mix with cycles after it.
  */
-function afterCutoff<T extends PeriodRange>(
+export function afterCutoff<T extends PeriodRange>(
   periods: readonly T[],
   since?: string,
 ): T[] {

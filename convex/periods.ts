@@ -9,6 +9,64 @@ import { findOpenPregnancy } from "./pregnancies";
 // latest 6 periods, and the home page table shows the same ones.
 const MAX_LISTED = 6;
 
+// Analysis charts show 6 cycles, which needs 7 periods (6 gaps between them).
+const MAX_ANALYSIS_PERIODS = 7;
+
+export const listForAnalysis = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    return await ctx.db
+      .query("periods")
+      .withIndex("by_user_and_start", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(MAX_ANALYSIS_PERIODS);
+  },
+});
+
+export const firstYear = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    const first = await ctx.db
+      .query("periods")
+      .withIndex("by_user_and_start", (q) => q.eq("userId", userId))
+      .order("asc")
+      .first();
+    return first ? Number(first.startDate.slice(0, 4)) : null;
+  },
+});
+
+/**
+ * Periods starting in `year`, oldest first, plus the next period after the
+ * year (if any) so the year's last cycle can be closed.
+ */
+export const listByYear = query({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    const userId = await requireUserId(ctx);
+    if (!Number.isInteger(year) || year < 1900 || year > 9999)
+      throw new Error("Invalid year");
+    const from = `${year}-01-01`;
+    const to = `${year}-12-31`;
+    const inYear = await ctx.db
+      .query("periods")
+      .withIndex("by_user_and_start", (q) =>
+        q.eq("userId", userId).gte("startDate", from).lte("startDate", to),
+      )
+      .order("asc")
+      .collect();
+    const next = await ctx.db
+      .query("periods")
+      .withIndex("by_user_and_start", (q) =>
+        q.eq("userId", userId).gt("startDate", to),
+      )
+      .order("asc")
+      .first();
+    return next ? [...inYear, next] : inYear;
+  },
+});
+
 export const list = query({
   args: {},
   handler: async (ctx) => {

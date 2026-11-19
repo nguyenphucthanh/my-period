@@ -1,8 +1,6 @@
 "use client";
 
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { CycleBar } from "@/components/cycle-bar";
 import { PregnancyDialog } from "@/components/pregnancy-dialog";
@@ -28,7 +26,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -77,11 +74,6 @@ export default function Home() {
 
   return (
     <>
-      <header className="flex items-center justify-between p-4">
-        <h1 className="text-lg font-semibold">Chu kỳ của tôi</h1>
-        <SignOutButton />
-      </header>
-      <Separator />
       <main className="mx-auto flex max-w-2xl flex-col gap-6 p-4 md:p-8">
         {pregnant ? (
           <section className="flex flex-col gap-3">
@@ -219,21 +211,6 @@ export default function Home() {
         today={today}
       />
     </>
-  );
-}
-
-function SignOutButton() {
-  const { isAuthenticated } = useConvexAuth();
-  const { signOut } = useAuthActions();
-  const router = useRouter();
-  if (!isAuthenticated) return null;
-  return (
-    <Button
-      variant="outline"
-      onClick={() => void signOut().then(() => router.push("/signin"))}
-    >
-      Đăng xuất
-    </Button>
   );
 }
 

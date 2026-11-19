@@ -38,3 +38,51 @@ export function pregnancyProgressText(startDate: string, today: string): string 
   const days = Math.max(0, diffDays(startDate, today));
   return `Tuần ${Math.floor(days / 7)}, ngày ${days % 7}`;
 }
+
+/** "29–32" or "31" for a min/max range. */
+export function rangeText(range: { min: number; max: number }): string {
+  return range.min === range.max
+    ? `${range.min}`
+    : `${range.min}–${range.max}`;
+}
+
+/** "+1 ngày" / "-2 ngày" / "0 ngày" for the change between two cycles. */
+export function variationText(days: number): string {
+  const abs = Math.abs(days);
+  if (days === 0) return "0 ngày";
+  return `${days > 0 ? "+" : "-"}${abs} ngày`;
+}
+
+export function cycleSummaryText(count: number, average: number): string {
+  return `Dựa trên ${count} chu kỳ gần nhất, độ dài chu kỳ trung bình của bạn là ${average} ngày.`;
+}
+
+export function periodSummaryText(
+  count: number,
+  average: number,
+  normal: boolean,
+): string {
+  const base = `Kỳ kinh của bạn kéo dài trung bình ${average} ngày trong ${count} kỳ gần nhất.`;
+  return normal
+    ? base
+    : `${base} Có kỳ nằm ngoài khoảng thông thường 2–7 ngày. Nếu tình trạng này tiếp diễn, hãy cân nhắc tham khảo ý kiến bác sĩ.`;
+}
+
+export function periodStatusText(
+  s:
+    | { kind: "upcoming"; days: number }
+    | { kind: "on-time" }
+    | { kind: "late"; days: number }
+    | { kind: "unknown" },
+): string {
+  switch (s.kind) {
+    case "upcoming":
+      return `Còn ${s.days} ngày`;
+    case "on-time":
+      return "Đúng hạn";
+    case "late":
+      return `Trễ ${s.days} ngày`;
+    case "unknown":
+      return "Chưa có dữ liệu";
+  }
+}
