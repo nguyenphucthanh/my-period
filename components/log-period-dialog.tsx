@@ -50,6 +50,8 @@ type Props = {
   /** When set, the dialog edits (and can delete) this period. */
   editing?: LoggedPeriod;
   today: string;
+  /** End of the latest pregnancy; earlier periods are ignored for prediction. */
+  since?: string;
 };
 
 export function LogPeriodDialog(props: Props) {
@@ -58,14 +60,21 @@ export function LogPeriodDialog(props: Props) {
   return <LogPeriodForm key={key} {...props} />;
 }
 
-function LogPeriodForm({ open, onOpenChange, periods, editing, today }: Props) {
+function LogPeriodForm({
+  open,
+  onOpenChange,
+  periods,
+  editing,
+  today,
+  since,
+}: Props) {
   const log = useMutation(api.periods.log);
   const update = useMutation(api.periods.update);
   const remove = useMutation(api.periods.remove);
   const length = suggestedPeriodLength(
     periods.filter((p) => p._id !== editing?._id),
   );
-  const prediction = predict(periods);
+  const prediction = predict(periods, since);
 
   const [start, setStart] = useState(editing?.startDate ?? null);
   const [end, setEnd] = useState(editing?.endDate ?? null);
@@ -235,5 +244,7 @@ export function errorText(e: unknown): string {
     return "Ngày kết thúc phải sau ngày bắt đầu.";
   if (msg.includes("too long")) return "Kỳ kinh quá dài.";
   if (msg.includes("not found")) return "Không tìm thấy kỳ kinh.";
+  if (msg.includes("while pregnant"))
+    return "Không thể ghi nhận kỳ kinh khi đang mang thai.";
   return "Đã có lỗi xảy ra. Vui lòng thử lại.";
 }

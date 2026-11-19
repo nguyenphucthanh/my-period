@@ -54,6 +54,18 @@ function sortAsc<T extends PeriodRange>(periods: readonly T[]): T[] {
   return [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
+/**
+ * Periods that started after `since` (the end of the latest pregnancy), so
+ * cycles from before a pregnancy never mix with cycles after it.
+ */
+function afterCutoff<T extends PeriodRange>(
+  periods: readonly T[],
+  since?: string,
+): T[] {
+  const sorted = sortAsc(periods);
+  return since ? sorted.filter((x) => x.startDate > since) : sorted;
+}
+
 export type Prediction = {
   cycleLength: number;
   periodLength: number;
@@ -68,8 +80,11 @@ export type Prediction = {
 const avg = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
 
 /** Predicts the next period and fertile window from the latest periods. */
-export function predict(periods: readonly PeriodRange[]): Prediction | null {
-  const recent = sortAsc(periods).slice(-MAX_RECENT_PERIODS);
+export function predict(
+  periods: readonly PeriodRange[],
+  since?: string,
+): Prediction | null {
+  const recent = afterCutoff(periods, since).slice(-MAX_RECENT_PERIODS);
   if (recent.length === 0) return null;
 
   const gaps: number[] = [];
@@ -92,6 +107,42 @@ export function predict(periods: readonly PeriodRange[]): Prediction | null {
     fertileStart: addDays(ovulation, -5),
     fertileEnd: addDays(ovulation, 1),
   };
+}
+
+export type CycleAnomaly =
+  /** Gap between two logged periods is longer than MAX_CYCLE. */
+  | { kind: "long-gap"; from: string; to: string; days: number }
+  /** No period logged for longer than MAX_CYCLE since the last one. */
+  | { kind: "overdue"; from: string; days: number };
+
+/**
+ * Flags unusually long gaps between recent periods, and a current cycle that
+ * has run past MAX_CYCLE. Typical causes: forgot to log, or pregnancy.
+ * These gaps are ignored by `predict`, so surface them to the user.
+ */
+export function detectAnomalies(
+  periods: readonly PeriodRange[],
+  today: string,
+  since?: string,
+): CycleAnomaly[] {
+  const recent = afterCutoff(periods, since).slice(-MAX_RECENT_PERIODS);
+  if (recent.length === 0) return [];
+  const anomalies: CycleAnomaly[] = [];
+  for (let i = 1; i < recent.length; i++) {
+    const days = diffDays(recent[i - 1].startDate, recent[i].startDate);
+    if (days > MAX_CYCLE)
+      anomalies.push({
+        kind: "long-gap",
+        from: recent[i - 1].startDate,
+        to: recent[i].startDate,
+        days,
+      });
+  }
+  const lastStart = recent[recent.length - 1].startDate;
+  const sinceLast = diffDays(lastStart, today);
+  if (sinceLast > MAX_CYCLE)
+    anomalies.push({ kind: "overdue", from: lastStart, days: sinceLast });
+  return anomalies;
 }
 
 /** Length used to auto-fill the end date when logging a period. */
@@ -124,10 +175,11 @@ export function buildBar(
   periods: readonly PeriodRange[],
   today: string,
   length?: number,
+  since?: string,
 ): Bar | null {
-  const prediction = predict(periods);
+  const prediction = predict(periods, since);
   if (!prediction) return null;
-  const last = sortAsc(periods)[periods.length - 1];
+  const last = afterCutoff(periods, since).slice(-1)[0];
   const size =
     length ??
     Math.min(

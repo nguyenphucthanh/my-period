@@ -20,3 +20,8 @@ export function daysBetween(from: string, to: string): number {
   };
   return Math.round((t(to) - t(from)) / 86_400_000);
 }
+
+/** Today's UTC date plus one day of slack, so users ahead of UTC can still pick "today". */
+export function latestAllowedDate(now: number = Date.now()): string {
+  return new Date(now + 86_400_000).toISOString().slice(0, 10);
+}

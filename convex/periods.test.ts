@@ -154,4 +154,32 @@ describe("periods", () => {
     const row = await t.run((ctx) => ctx.db.get("periods", id));
     expect(row?.startDate).toBe("2026-11-01");
   });
+  it("blocks logging and editing periods while pregnant, then allows again", async () => {
+    const { t } = await setup();
+    const id = await t.mutation(api.periods.log, {
+      startDate: "2026-10-01",
+      endDate: "2026-10-05",
+    });
+    await t.mutation(api.pregnancies.start, { startDate: "2026-10-20" });
+    await expect(
+      t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" }),
+    ).rejects.toThrow("Cannot log periods while pregnant");
+    await expect(
+      t.mutation(api.periods.update, { id, startDate: "2026-10-02", endDate: "2026-10-06" }),
+    ).rejects.toThrow("Cannot log periods while pregnant");
+    // deleting stays allowed so mistakes can be cleaned up
+    await t.mutation(api.periods.remove, { id });
+
+    await t.mutation(api.pregnancies.end, { endDate: "2026-11-10" });
+    await t.mutation(api.periods.log, { startDate: "2026-11-15", endDate: "2026-11-19" });
+    expect(await t.query(api.periods.list, {})).toHaveLength(1);
+  });
+
+  it("only blocks the pregnant user", async () => {
+    const { t, otherId } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("pregnancies", { userId: otherId, startDate: "2026-10-01" }),
+    );
+    await t.mutation(api.periods.log, { startDate: "2026-11-01", endDate: "2026-11-05" });
+  });
 });

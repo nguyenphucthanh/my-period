@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDays,
   buildBar,
+  detectAnomalies,
   diffDays,
   periodLength,
   predict,
@@ -157,5 +158,104 @@ describe("buildBar", () => {
   it("reports a today outside the bar", () => {
     expect(buildBar(periods, "2026-12-15")!.todayIndex).toBe(44);
     expect(buildBar(periods, "2026-10-30")!.todayIndex).toBe(-2);
+  });
+});
+
+describe("detectAnomalies", () => {
+  it("returns nothing without periods or with normal cycles", () => {
+    expect(detectAnomalies([], "2026-11-18")).toEqual([]);
+    expect(
+      detectAnomalies(
+        [p("2026-09-01", "2026-09-05"), p("2026-09-29", "2026-10-03")],
+        "2026-10-10",
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags a gap longer than 60 days between periods", () => {
+    expect(
+      detectAnomalies(
+        [p("2026-01-01", "2026-01-05"), p("2026-04-01", "2026-04-05")],
+        "2026-04-10",
+      ),
+    ).toEqual([
+      { kind: "long-gap", from: "2026-01-01", to: "2026-04-01", days: 90 },
+    ]);
+  });
+
+  it("treats exactly 60 days as normal", () => {
+    expect(
+      detectAnomalies(
+        [p("2026-01-01", "2026-01-05"), p("2026-03-02", "2026-03-06")],
+        "2026-03-10",
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags an overdue current cycle", () => {
+    expect(
+      detectAnomalies([p("2026-09-01", "2026-09-05")], "2026-11-18"),
+    ).toEqual([{ kind: "overdue", from: "2026-09-01", days: 78 }]);
+    expect(
+      detectAnomalies([p("2026-09-01", "2026-09-05")], "2026-10-31"),
+    ).toEqual([]);
+  });
+
+  it("handles unsorted input and reports both kinds", () => {
+    const result = detectAnomalies(
+      [p("2026-06-01", "2026-06-05"), p("2026-01-01", "2026-01-05")],
+      "2026-11-18",
+    );
+    expect(result.map((a) => a.kind)).toEqual(["long-gap", "overdue"]);
+  });
+});
+
+describe("after a pregnancy (since cutoff)", () => {
+  // pregnancy ended 2026-08-01; two periods before it, two after it
+  const before = [p("2026-01-01", "2026-01-05"), p("2026-01-29", "2026-02-02")];
+  const after = [p("2026-08-20", "2026-08-23"), p("2026-09-17", "2026-09-20")];
+  const all = [...before, ...after];
+  const since = "2026-08-01";
+
+  it("predicts only from periods after the cutoff", () => {
+    const result = predict(all, since);
+    expect(result).toMatchObject({
+      lastStart: "2026-09-17",
+      cycleLength: 28,
+      periodLength: 4,
+      nextStart: "2026-10-15",
+    });
+  });
+
+  it("returns null when no period was logged after the cutoff", () => {
+    expect(predict(before, since)).toBeNull();
+    expect(buildBar(before, "2026-08-10", undefined, since)).toBeNull();
+  });
+
+  it("does not flag the gap across the pregnancy as an anomaly", () => {
+    expect(detectAnomalies(all, "2026-09-25", since)).toEqual([]);
+    // without the cutoff the same data is flagged
+    expect(detectAnomalies(all, "2026-09-25").map((a) => a.kind)).toEqual([
+      "long-gap",
+    ]);
+  });
+
+  it("does not flag overdue from a period before the cutoff", () => {
+    expect(detectAnomalies(before, "2026-08-10", since)).toEqual([]);
+  });
+
+  it("still flags a genuinely overdue cycle after the cutoff", () => {
+    expect(
+      detectAnomalies(all, "2026-12-01", since).map((a) => a.kind),
+    ).toEqual(["overdue"]);
+  });
+
+  it("builds the bar from the latest period after the cutoff", () => {
+    const bar = buildBar(all, "2026-09-20", undefined, since);
+    expect(bar?.startDate).toBe("2026-09-17");
+  });
+
+  it("treats a period starting exactly on the cutoff day as before it", () => {
+    expect(predict([p("2026-08-01", "2026-08-04")], since)).toBeNull();
   });
 });

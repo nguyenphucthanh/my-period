@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { daysBetween, isValidIsoDate, MAX_PERIOD_DAYS } from "./lib/dates";
 import { requireUserId } from "./lib/requireUser";
+import { findOpenPregnancy } from "./pregnancies";
 
 // Matches MAX_RECENT_PERIODS in lib/cycle.ts: the prediction only uses the
 // latest 6 periods, and the home page table shows the same ones.
@@ -27,6 +28,9 @@ async function validate(
   endDate: string,
   selfId?: Id<"periods">,
 ) {
+  if ((await findOpenPregnancy(ctx, userId)) !== null) {
+    throw new Error("Cannot log periods while pregnant");
+  }
   if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) {
     throw new Error("Invalid date");
   }

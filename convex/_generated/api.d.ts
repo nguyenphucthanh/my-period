@@ -13,6 +13,7 @@ import type * as lib_dates from "../lib/dates.js";
 import type * as lib_requireUser from "../lib/requireUser.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as periods from "../periods.js";
+import type * as pregnancies from "../pregnancies.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   "lib/requireUser": typeof lib_requireUser;
   myFunctions: typeof myFunctions;
   periods: typeof periods;
+  pregnancies: typeof pregnancies;
   users: typeof users;
 }>;
 
