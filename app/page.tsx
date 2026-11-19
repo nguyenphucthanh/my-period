@@ -118,7 +118,14 @@ export default function Home() {
                 <p>{ovulationText(bar.daysUntilOvulation)}</p>
               </section>
             )}
-            <div className="ml-auto flex shrink-0 gap-2">
+            <div className="ml-auto flex flex-col shrink-0 gap-2">
+              <Button
+                size="lg"
+                onClick={() => openDialog()}
+                disabled={!periods}
+              >
+                Ghi nhận kỳ kinh
+              </Button>
               <Button
                 size="lg"
                 variant="outline"
@@ -126,13 +133,6 @@ export default function Home() {
                 disabled={pregnancy === undefined}
               >
                 Đang mang thai
-              </Button>
-              <Button
-                size="lg"
-                onClick={() => openDialog()}
-                disabled={!periods}
-              >
-                Ghi nhận kỳ kinh
               </Button>
             </div>
           </div>
